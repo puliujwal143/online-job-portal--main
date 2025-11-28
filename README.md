@@ -1,129 +1,108 @@
-🚀 Job Portal 
-A full-stack job portal application built using Node.js, Express, MongoDB, and React.
-Supports user authentication (JWT), job posting, job applications, and file uploads.
+# Online Job Recruitment and Application Portal
 
-📌 Features
->👤 User & Employer Authentication
-Register & Login using JWT
-Separate access for job seekers & employers
-Persistent login using HTTP-only tokens
+A **full-stack online job recruitment and application portal** built with **React, Node.js, Express, and MongoDB**.  
+This platform allows employers to post jobs, and applicants to browse and apply for them with resume uploads. Authentication is handled securely with JWT.
 
-💼 Job Management
-Employers can create, update, and delete jobs
-Job seekers can browse and apply for jobs
-Resume upload using Multer
+##  Features
+- User registration and login (JWT authentication)  
+- Role-based dashboards: Admin, Employer, Applicant  
+- Employers can create, update, and delete job listings  
+- Applicants can browse jobs and submit applications  
+- Resume file uploads handled via Multer  
+- Responsive React frontend  
+- Admin panel for managing users and overseeing applications  
 
-🔍 Search & Filter
-Search jobs by title, skills, or company
-Filter by location, salary, or job type
+##  Tech Stack
+**Backend:** Node.js, Express, MongoDB (Mongoose), JWT, Multer  
+**Frontend:** React, Context API, Axios, CSS Modules  
 
-📁 Resume Upload
-Accepts PDF, DOCX
-Secure file handling
-
-🏗️ Tech Stack
->Frontend
-React (CRA)
-Axios
-React Router DOM
-
->Backend
-Node.js
-Express.js
-MongoDB + Mongoose
-Multer (file uploads)
-JSON Web Tokens (JWT)
-
-📁 Project Structure
-job-portal/
-│
+##  Folder Structure
+Online Job Recruitment and Application Portal/
 ├── backend/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── uploads/
-│   ├── .env.example
-│   ├── server.js
-│   └── package.json
-│
-└── frontend/
-    ├── public/
-    ├── src/
-    │   ├── components/
-    │   ├── pages/
-    │   ├── api/
-    │   └── App.js
-    └── package.json
+│ ├── config/ # Database configuration
+│ ├── middleware/ # Auth & file upload middleware
+│ ├── models/ # Mongoose models: User, Job, Application
+│ ├── routes/ # API routes: auth, jobs, users, applications
+│ ├── utils/ # Utilities: email service, hash
+│ ├── server.js # Backend entry point
+│ └── package.json
+├── frontend/
+│ ├── public/ # index.html, favicon, static assets
+│ ├── src/
+│ │ ├── components/ # Admin, Employer, Applicant, Auth, Home
+│ │ ├── context/ # AuthContext
+│ │ ├── utils/ # API helper functions
+│ │ ├── App.js
+│ │ └── index.js
+│ └── package.json
+├── .gitignore
+└── README.md
 
-⚙️ Installation & Setup (Windows / PowerShell)
-1️⃣ Clone the repository
-git clone https://github.com/YOUR_USERNAME/job-portal.git
-cd job-portal
+> **Note:** `node_modules/`, `uploads/`, and `backend/database/` are excluded via `.gitignore`.
 
-🗄️ Backend Setup
-2️⃣ Create MongoDB data directory (only once)
-New-Item -ItemType Directory -Force -Path C:\data\db
+##  Installation
+### Prerequisites
+- Node.js v16+  
+- npm  
+- MongoDB installed and running locally (`mongod`)  
 
-3️⃣ Start MongoDB
-mongod --ipv6 --bind_ip_all --setParameter diagnosticDataCollectionEnabled=false
-
-4️⃣ Install backend dependencies
+### Backend Setup
+bash
 cd backend
 npm install
 
-5️⃣ Create .env file
-Copy from .env.example and update:
+1.Create .env file in backend/ based on .env.example:
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/job_portal
-JWT_SECRET=replace_with_strong_secret
+JWT_SECRET=your_secure_jwt_secret
 JWT_EXPIRE=7d
 FRONTEND_URL=http://localhost:3000
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=admin123
 
-6️⃣ Start backend
+2.Start backend server:
 npm run dev
+Backend default port: 5000
 
-🎨 Frontend Setup
-1️⃣ Install frontend dependencies
-cd ../frontend
+3.Frontend Setup
+cd frontend
 npm install
-
-2️⃣ Start React app
 npm start
-Frontend runs at: http://localhost:3000
-Backend runs at: http://localhost:5000
+Frontend default port: 3000
+Visit http://localhost:3000 in your browser.
 
-🔌 API Endpoints (Quick Preview)
-Auth
-Method	Endpoint	Description
-POST	/api/auth/register	Register user
-POST	/api/auth/login	Login & get JWT
-GET	/api/auth/me	Get logged-in user
-Jobs
-Method	Endpoint	Description
-GET	/api/jobs	Get all jobs
-POST	/api/jobs	Create a job (Employer only)
-GET	/api/jobs/:id	Job details
+## Usage
+Register as an Applicant or Employer
+Employers can create, edit, and delete job postings
+Applicants can view job details and apply with resume uploads
+Admins can manage users and view all applications
 
-🧪 Optional: Admin Seeder
-Use only in development:
-node backend/hash.js
-node backend/updateAdmin.js
+## Environment Variables
+### All sensitive information should be stored in .env:
+PORT=
+MONGODB_URI=
+JWT_SECRET=
+JWT_EXPIRE=
+FRONTEND_URL=
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+Never commit .env or real passwords to GitHub.
 
-🛠️ Troubleshooting
-MongoDB "db not found"
-Create directory:
-New-Item -ItemType Directory -Force -Path C:\data\db
-Port 5000 already used
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
-CORS error
-Check your backend .env:
-FRONTEND_URL=http://localhost:3000
+## Admin Access (Development Only)
+Admin email/password is configurable via .env
+Admin dashboard allows management of users and monitoring job applications
 
+## Contributing
+Fork the repository
+Create a new branch: git checkout -b feature/new-feature
+Commit changes: git commit -m "Add new feature"
+Push branch: git push origin feature/new-feature
+Open a Pull Request
 
+## License
+This project is open-source and free to use for personal or educational purposes.
 
-👨‍💻 Author
+## Author
 POKALA PAVAN NAGA MANIKANTA
 GitHub: https://github.com/pokalapavan2004
 Email: pavanpokala2004@gmail.com
