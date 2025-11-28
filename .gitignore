@@ -1,0 +1,53 @@
+# --- Global ignores ---
+node_modules/
+.env
+.env.*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+.DS_Store
+Thumbs.db
+
+# --- Backend ignores ---
+backend/node_modules/
+backend/database/
+backend/uploads/
+backend/.env
+backend/.env.*
+backend/logs/
+backend/temp/
+backend/package-lock.json
+
+# Mongoose cache / lock files
+backend/*.lock
+backend/mongod.lock
+
+# --- Frontend ignores ---
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.env.*
+frontend/package-lock.json
+
+# --- OS / Editor files ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Uploads (resumes, files) ---
+uploads/
+*.pdf
+*.doc
+*.docx
+*.jpg
+*.jpeg
+*.png
+
+# --- Optional (delete if needed) ---
+.env.backup
+tmp/
+temp/
