@@ -1,7 +1,6 @@
-// backend/scripts/createAdmin.js
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
-const { db } = require("../firebase");
+const { db } = require("./firebase");
 
 const run = async () => {
   const email = "admin@gmail.com";

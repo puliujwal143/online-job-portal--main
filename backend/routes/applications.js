@@ -1,177 +1,227 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Application = require('../models/Application');
-const Job = require('../models/Job');
-const User = require('../models/User');
-const { protect, authorize } = require('../middleware/auth');
-const upload = require('../middleware/upload');
-const { sendApplicationConfirmation, sendApplicationStatusUpdate } = require('../utils/emailService');
 
-router.post('/', protect, authorize('applicant'), upload.single('resume'), async (req, res) => {
-  try {
-    const { jobId, coverLetter } = req.body;
+const Application = require("../models/Application");
+const Job = require("../models/Job");
+const { upload, uploadToFirebase } = require("../middleware/upload");
+const User = require("../models/User");
 
-    if (!req.file) {
-      return res.status(400).json({ message: 'Please upload a resume' });
-    }
+const { protect, authorize } = require("../middleware/auth");
 
-    const job = await Job.findById(jobId);
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
+const {
+  sendApplicationConfirmation,
+  sendApplicationStatusUpdate,
+} = require("../utils/emailService");
 
-    if (job.status !== 'open') {
-      return res.status(400).json({ message: 'This job is no longer accepting applications' });
-    }
-
-    const existingApplication = await Application.findOne({
-      job: jobId,
-      applicant: req.user._id
-    });
-
-    if (existingApplication) {
-      return res.status(400).json({ message: 'You have already applied for this job' });
-    }
-
-    const application = await Application.create({
-      job: jobId,
-      applicant: req.user._id,
-      resume: req.file.path,
-      coverLetter
-    });
-
-    job.applicationsCount += 1;
-    await job.save();
-
-    const populatedApplication = await Application.findById(application._id)
-      .populate('job')
-      .populate('applicant');
-
+/* ==================================================
+   APPLY FOR A JOB
+================================================== */
+router.post(
+  "/",
+  protect,
+  authorize("applicant"),
+  upload.single("resume"),
+  async (req, res) => {
     try {
-      await sendApplicationConfirmation(application, job, req.user);
-    } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
-    }
+      const { jobId, coverLetter } = req.body;
 
-    res.status(201).json(populatedApplication);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.get('/my-applications', protect, authorize('applicant'), async (req, res) => {
-  try {
-    const applications = await Application.find({ applicant: req.user._id })
-      .populate('job')
-      .sort({ appliedAt: -1 });
-    res.json(applications);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.get('/job/:jobId', protect, authorize('employer'), async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.jobId);
-    
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
-    if (job.postedBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-
-    const applications = await Application.find({ job: req.params.jobId })
-      .populate('applicant', 'name email phone location skills experience education')
-      .sort({ appliedAt: -1 });
-
-    res.json(applications);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const application = await Application.findById(req.params.id)
-      .populate('job')
-      .populate('applicant', 'name email phone location skills experience education');
-
-    if (!application) {
-      return res.status(404).json({ message: 'Application not found' });
-    }
-
-    if (req.user.role === 'applicant' && application.applicant._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-
-    if (req.user.role === 'employer') {
-      const job = await Job.findById(application.job._id);
-      if (job.postedBy.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'Not authorized' });
+      if (!req.file) {
+        return res.status(400).json({ message: "Please upload a resume" });
       }
-    }
 
-    res.json(application);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-router.put('/:id/status', protect, authorize('employer', 'admin'), async (req, res) => {
-  try {
-    const { status, notes } = req.body;
-
-    const application = await Application.findById(req.params.id)
-      .populate('job')
-      .populate('applicant');
-
-    if (!application) {
-      return res.status(404).json({ message: 'Application not found' });
-    }
-
-    if (req.user.role === 'employer') {
-      const job = await Job.findById(application.job._id);
-      if (job.postedBy.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'Not authorized' });
+      const job = await Job.findById(jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
       }
+
+      if (job.status !== "open") {
+        return res
+          .status(400)
+          .json({ message: "This job is no longer accepting applications" });
+      }
+
+      // ✅ Upload to Firebase Storage
+      const resumeUrl = await uploadToFirebase(req.file);
+
+      const application = await Application.create({
+        jobId,
+        applicantId: req.user.id,
+        resume: resumeUrl,
+        coverLetter: coverLetter || "",
+      });
+
+      await Job.incrementApplications(jobId);
+
+      res.status(201).json(application);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: error.message });
     }
-
-    application.status = status;
-    application.notes = notes;
-    application.reviewedAt = Date.now();
-
-    await application.save();
-
+  }
+);
+/* ==================================================
+   GET MY APPLICATIONS (APPLICANT)
+================================================== */
+router.get(
+  "/my-applications",
+  protect,
+  authorize("applicant"),
+  async (req, res) => {
     try {
-      await sendApplicationStatusUpdate(application, application.job, application.applicant);
-    } catch (emailError) {
-      console.error('Failed to send status update email:', emailError);
+      const applications = await Application.findByApplicant(req.user.id);
+
+      const enriched = await Promise.all(
+        applications.map(async (app) => {
+          const job = await Job.findById(app.job);
+          if (!job) return null; // ✅ prevent crashes
+          return { ...app, job };
+        })
+      );
+
+      res.json(enriched.filter(Boolean)); // ✅ remove nulls
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+/* ==================================================
+   GET APPLICATIONS FOR A JOB (EMPLOYER)
+================================================== */
+router.get(
+  "/job/:jobId",
+  protect,
+  authorize("employer"),
+  async (req, res) => {
+    try {
+      const job = await Job.findById(req.params.jobId);
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+
+      if (String(job.postedBy) !== String(req.user.id)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const applications = await Application.findByJob(req.params.jobId);
+
+      const enriched = await Promise.all(
+        applications.map(async (app) => {
+          const applicant = await User.findById(app.applicant);
+          return { ...app, applicant };
+        })
+      );
+
+      res.json(enriched);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+
+/* ==================================================
+   GET SINGLE APPLICATION
+================================================== */
+router.get("/:id", protect, async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id);
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
     }
 
-    res.json(application);
+    const job = await Job.findById(application.job);
+    const applicant = await User.findById(application.applicant);
+
+    if (!job || !applicant) {
+      return res.status(404).json({ message: "Related data missing" });
+    }
+
+    if (
+      req.user.role === "applicant" &&
+      applicant.id !== req.user.id
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (
+      req.user.role === "employer" &&
+      String(job.postedBy) !== String(req.user.id)
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    res.json({ ...application, job, applicant });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.get('/stats/overview', protect, authorize('admin'), async (req, res) => {
-  try {
-    const totalApplications = await Application.countDocuments();
-    const pendingApplications = await Application.countDocuments({ status: 'pending' });
-    const acceptedApplications = await Application.countDocuments({ status: 'accepted' });
-    const rejectedApplications = await Application.countDocuments({ status: 'rejected' });
+/* ==================================================
+   UPDATE APPLICATION STATUS
+================================================== */
+router.put(
+  "/:id/status",
+  protect,
+  authorize("employer", "admin"),
+  async (req, res) => {
+    try {
+      const { status, notes } = req.body;
 
-    res.json({
-      total: totalApplications,
-      pending: pendingApplications,
-      accepted: acceptedApplications,
-      rejected: rejectedApplications
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+      const application = await Application.findById(req.params.id);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+
+      const job = await Job.findById(application.job);
+      const applicant = await User.findById(application.applicant);
+
+      if (
+        req.user.role === "employer" &&
+        String(job.postedBy) !== String(req.user.id)
+      ) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const updated = await Application.updateStatus(
+        req.params.id,
+        status,
+        notes || ""
+      );
+
+      try {
+        await sendApplicationStatusUpdate(updated, job, applicant);
+      } catch (e) {
+        console.error("Email error:", e.message);
+      }
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
   }
-});
+);
+
+/* ==================================================
+   ADMIN STATS
+================================================== */
+router.get(
+  "/stats/overview",
+  protect,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const all = await Application.getAll();
+
+      res.json({
+        total: all.length,
+        pending: all.filter(a => a.status === "pending").length,
+        accepted: all.filter(a => a.status === "accepted").length,
+        rejected: all.filter(a => a.status === "rejected").length,
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
 
 module.exports = router;

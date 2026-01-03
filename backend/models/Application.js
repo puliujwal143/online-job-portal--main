@@ -1,40 +1,121 @@
-const mongoose = require('mongoose');
+const { db } = require("../firebase");
 
-const applicationSchema = new mongoose.Schema({
-  job: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Job',
-    required: true
+const APPLICATIONS_COLLECTION = "applications";
+
+const Application = {
+
+  // =========================
+  // APPLY FOR A JOB
+  // =========================
+  async create({ jobId, applicantId, resume, coverLetter }) {
+    const existing = await db
+      .collection(APPLICATIONS_COLLECTION)
+      .where("job", "==", jobId)
+      .where("applicant", "==", applicantId)
+      .limit(1)
+      .get();
+
+    if (!existing.empty) {
+      throw new Error("You have already applied for this job");
+    }
+
+    const dataToSave = {
+      job: jobId,
+      applicant: applicantId,
+      resume,
+      coverLetter: coverLetter || "",
+      status: "pending",
+      appliedAt: new Date(),
+      reviewedAt: null,
+      notes: ""
+    };
+
+    const ref = await db.collection(APPLICATIONS_COLLECTION).add(dataToSave);
+
+    return {
+      id: ref.id,
+      ...dataToSave
+    };
   },
-  applicant: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+
+  // =========================
+  // GET ALL APPLICATIONS ✅ (REQUIRED FOR STATS)
+  // =========================
+  async getAll() {
+    const snapshot = await db
+      .collection(APPLICATIONS_COLLECTION)
+      .get();
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
   },
-  resume: {
-    type: String,
-    required: [true, 'Please upload your resume']
+
+  // =========================
+  // GET APPLICATIONS BY JOB
+  // =========================
+  async findByJob(jobId) {
+    const snapshot = await db
+      .collection(APPLICATIONS_COLLECTION)
+      .where("job", "==", jobId)
+      .orderBy("appliedAt", "desc")
+      .get();
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
   },
-  coverLetter: {
-    type: String
+
+  // =========================
+  // GET APPLICATIONS BY USER
+  // =========================
+  async findByApplicant(applicantId) {
+    const snapshot = await db
+      .collection(APPLICATIONS_COLLECTION)
+      .where("applicant", "==", applicantId)
+      .orderBy("appliedAt", "desc")
+      .get();
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
   },
-  status: {
-    type: String,
-    enum: ['pending', 'reviewing', 'shortlisted', 'rejected', 'accepted'],
-    default: 'pending'
+
+  // =========================
+  // UPDATE APPLICATION STATUS
+  // =========================
+  async updateStatus(id, status, notes = "") {
+    const updates = {
+      status,
+      reviewedAt: new Date(),
+      notes
+    };
+
+    await db.collection(APPLICATIONS_COLLECTION).doc(id).update(updates);
+
+    const doc = await db.collection(APPLICATIONS_COLLECTION).doc(id).get();
+
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
   },
-  appliedAt: {
-    type: Date,
-    default: Date.now
-  },
-  reviewedAt: {
-    type: Date
-  },
-  notes: {
-    type: String
+
+  // =========================
+  // FIND BY ID
+  // =========================
+  async findById(id) {
+    const doc = await db.collection(APPLICATIONS_COLLECTION).doc(id).get();
+    if (!doc.exists) return null;
+
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
   }
-});
+};
 
-applicationSchema.index({ job: 1, applicant: 1 }, { unique: true });
-
-module.exports = mongoose.model('Application', applicationSchema);
+module.exports = Application;

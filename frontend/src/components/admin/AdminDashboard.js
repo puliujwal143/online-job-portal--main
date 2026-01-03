@@ -202,7 +202,7 @@ const AdminDashboard = () => {
                 </thead>
                 <tbody>
                   {pendingEmployers.map((employer) => (
-                    <tr key={employer._id}>
+                    <tr key={employer.id}>
                       <td>{employer.name}</td>
                       <td>{employer.email}</td>
                       <td>{employer.company}</td>
@@ -211,7 +211,7 @@ const AdminDashboard = () => {
                       <td>
                         <button
                           className="btn btn-success btn-sm"
-                          onClick={() => approveEmployer(employer._id)}
+                          onClick={() => approveEmployer(employer.id)}
                         >
                           Approve
                         </button>
@@ -231,7 +231,7 @@ const AdminDashboard = () => {
               <p>No pending job approvals</p>
             ) : (
               pendingJobs.map((job) => (
-                <div key={job._id} className="card job-card">
+                <div key={job.id} className="card job-card">
                   <h3>{job.title}</h3>
                   <p><strong>Company:</strong> {job.company}</p>
                   <p><strong>Posted by:</strong> {job.postedBy.name} ({job.postedBy.email})</p>
@@ -244,13 +244,13 @@ const AdminDashboard = () => {
                   <div className="job-actions">
                     <button
                       className="btn btn-success"
-                      onClick={() => approveJob(job._id)}
+                      onClick={() => approveJob(job.id)}
                     >
                       Approve
                     </button>
                     <button
                       className="btn btn-danger"
-                      onClick={() => rejectJob(job._id)}
+                      onClick={() => rejectJob(job.id)}
                     >
                       Reject
                     </button>
@@ -277,7 +277,7 @@ const AdminDashboard = () => {
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr key={user._id}>
+                  <tr key={user.id}>
                     <td>{user.name}</td>
                     <td>{user.email}</td>
                     <td><span className="badge badge-info">{user.role}</span></td>
@@ -293,7 +293,7 @@ const AdminDashboard = () => {
                       {user.role !== 'admin' && (
                         <button
                           className="btn btn-danger btn-sm"
-                          onClick={() => deleteUser(user._id)}
+                          onClick={() => deleteUser(user.id)}
                         >
                           Delete
                         </button>

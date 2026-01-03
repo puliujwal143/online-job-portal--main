@@ -1,79 +1,125 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const { db } = require("../firebase");
+const bcrypt = require("bcryptjs");
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Please provide a name'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Please provide an email'],
-    unique: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
-  },
-  password: {
-    type: String,
-    required: [true, 'Please provide a password'],
-    minlength: 6,
-    select: false
-  },
-  role: {
-    type: String,
-    enum: ['admin', 'employer', 'applicant'],
-    default: 'applicant'
-  },
-  company: {
-    type: String,
-    required: function() {
-      return this.role === 'employer';
-    }
-  },
-  phone: {
-    type: String
-  },
-  location: {
-    type: String
-  },
-  bio: {
-    type: String
-  },
-  skills: [{
-    type: String
-  }],
-  experience: {
-    type: String
-  },
-  education: {
-    type: String
-  },
-  resume: {
-    type: String
-  },
-  isApproved: {
-    type: Boolean,
-    default: function() {
-      return this.role === 'applicant';
-    }
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+const USERS_COLLECTION = "users";
 
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
+const User = {
 
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  // =========================
+  // CREATE USER (like .save)
+  // =========================
+  async create(userData) {
+    // Hash password (replacement for pre('save'))
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(userData.password, salt);
+
+const dataToSave = {
+  name: userData.name,
+  email: userData.email.toLowerCase(),
+  password: hashedPassword,
+  role: userData.role || "applicant",
+  phone: userData.phone || "",
+  location: userData.location || "",
+  bio: "",
+  skills: [],
+  experience: "",
+  education: "",
+  resume: "",
+  isApproved: userData.role === "applicant",
+  createdAt: new Date(),
 };
 
-module.exports = mongoose.model('User', userSchema);
+// ✅ ONLY add company if employer
+if (userData.role === "employer") {
+  dataToSave.company = userData.company;
+}
+    const ref = await db.collection(USERS_COLLECTION).add(dataToSave);
+
+    return {
+      id: ref.id,
+      ...dataToSave,
+      password: undefined // mimic select:false
+    };
+  },
+
+  // =========================
+  // FIND BY EMAIL
+  // =========================
+  async findByEmail(email, includePassword = false) {
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("email", "==", email.toLowerCase())
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) return null;
+
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+
+    if (!includePassword) {
+      delete data.password;
+    }
+
+    return {
+      id: doc.id,
+      ...data,
+    };
+  },
+
+  // =========================
+  // FIND BY ID
+  // =========================
+  async findById(id) {
+    const doc = await db.collection(USERS_COLLECTION).doc(id).get();
+
+    if (!doc.exists) return null;
+
+    const data = doc.data();
+    delete data.password;
+
+    return {
+      id: doc.id,
+      ...data,
+    };
+  },
+
+  // =========================
+  // PASSWORD COMPARISON
+  // =========================
+  async matchPassword(enteredPassword, storedPassword) {
+    return await bcrypt.compare(enteredPassword, storedPassword);
+  },
+
+  // =========================
+  // UPDATE USER
+  // =========================
+  async update(id, updates) {
+  // 🔥 Remove undefined values (CRITICAL for Firestore)
+  Object.keys(updates).forEach(key => {
+    if (updates[key] === undefined) {
+      delete updates[key];
+    }
+  });
+
+  await db.collection(USERS_COLLECTION).doc(id).update(updates);
+  return this.findById(id);
+},
+
+  // =========================
+  // GET ALL USERS
+  // =========================
+  async getAll() {
+    const snapshot = await db.collection(USERS_COLLECTION).get();
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  },
+
+   async delete(id) {
+    await db.collection(USERS_COLLECTION).doc(id).delete();
+    return true;
+  }
+};
+module.exports = User;

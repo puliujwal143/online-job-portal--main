@@ -1,40 +1,69 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const multer = require("multer");
+const path = require("path");
+const { bucket } = require("../firebase");
 
-const uploadDir = './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// =========================
+// USE BUILT-IN MEMORY STORAGE
+// =========================
+const storage = multer.memoryStorage();
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// =========================
+// FILE FILTER
+// =========================
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /pdf|doc|docx/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
   const mimetype = allowedTypes.test(file.mimetype);
 
   if (mimetype && extname) {
-    return cb(null, true);
+    cb(null, true);
   } else {
-    cb(new Error('Only PDF, DOC, and DOCX files are allowed!'));
+    cb(new Error("Only PDF, DOC, and DOCX files are allowed!"));
   }
 };
 
+// =========================
+// MULTER CONFIG
+// =========================
 const upload = multer({
-  storage: storage,
+  storage,
   limits: {
-    fileSize: 5 * 1024 * 1024
+    fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: fileFilter
+  fileFilter,
 });
 
-module.exports = upload;
+// =========================
+// UPLOAD TO FIREBASE STORAGE
+// =========================
+const uploadToFirebase = async (file) => {
+  const uniqueName =
+    "resume-" +
+    Date.now() +
+    "-" +
+    Math.round(Math.random() * 1e9) +
+    path.extname(file.originalname);
+
+  const firebaseFile = bucket.file(`resumes/${uniqueName}`);
+
+  const stream = firebaseFile.createWriteStream({
+    metadata: {
+      contentType: file.mimetype,
+    },
+  });
+
+  return new Promise((resolve, reject) => {
+    stream.on("error", reject);
+
+    stream.on("finish", async () => {
+      await firebaseFile.makePublic();
+      resolve(firebaseFile.publicUrl());
+    });
+
+    stream.end(file.buffer);
+  });
+};
+
+module.exports = { upload, uploadToFirebase };

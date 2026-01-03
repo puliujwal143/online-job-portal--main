@@ -1,25 +1,34 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const { sendWelcomeEmail } = require('../utils/emailService');
-const { protect } = require('../middleware/auth');
+const jwt = require("jsonwebtoken");
 
+const User = require("../models/User");
+const { sendWelcomeEmail } = require("../utils/emailService");
+const { protect } = require("../middleware/auth");
+
+// =========================
+// GENERATE JWT
+// =========================
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE
+    expiresIn: process.env.JWT_EXPIRE,
   });
 };
 
-router.post('/register', async (req, res) => {
+// ==================================================
+// REGISTER
+// ==================================================
+router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role, company, phone, location } = req.body;
 
-    const userExists = await User.findOne({ email });
+    // 🔹 Check existing user
+    const userExists = await User.findByEmail(email);
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
 
+    // 🔹 Create user
     const user = await User.create({
       name,
       email,
@@ -27,100 +36,118 @@ router.post('/register', async (req, res) => {
       role,
       company,
       phone,
-      location
+      location,
     });
 
+    // 🔹 Send welcome email (non-blocking)
     try {
       await sendWelcomeEmail(user);
     } catch (emailError) {
-      console.error('Failed to send welcome email:', emailError);
+      console.error("Failed to send welcome email:", emailError);
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.status(201).json({
-      _id: user._id,
+      _id: user.id, // keep frontend compatibility
       name: user.name,
       email: user.email,
       role: user.role,
       company: user.company,
       isApproved: user.isApproved,
-      token
+      token,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.post('/login', async (req, res) => {
+// ==================================================
+// LOGIN
+// ==================================================
+router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select('+password');
+    // 🔹 Fetch user WITH password
+    const user = await User.findByEmail(email, true);
 
-    if (user && (await user.matchPassword(password))) {
-      const token = generateToken(user._id);
-
-      res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        company: user.company,
-        isApproved: user.isApproved,
-        token
-      });
-    } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    const isMatch = await User.matchPassword(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const token = generateToken(user.id);
+
+    res.json({
+      _id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      company: user.company,
+      isApproved: user.isApproved,
+      token,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.get('/me', protect, async (req, res) => {
+// ==================================================
+// GET CURRENT USER
+// ==================================================
+router.get("/me", protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user.id);
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.put('/profile', protect, async (req, res) => {
+// ==================================================
+// UPDATE PROFILE
+// ==================================================
+router.put("/profile", protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const updates = {
+      name: req.body.name,
+      phone: req.body.phone,
+      location: req.body.location,
+      bio: req.body.bio,
+      skills: req.body.skills,
+      experience: req.body.experience,
+      education: req.body.education,
+    };
 
-    if (user) {
-      user.name = req.body.name || user.name;
-      user.phone = req.body.phone || user.phone;
-      user.location = req.body.location || user.location;
-      user.bio = req.body.bio || user.bio;
-      user.skills = req.body.skills || user.skills;
-      user.experience = req.body.experience || user.experience;
-      user.education = req.body.education || user.education;
-
-      if (req.body.password) {
-        user.password = req.body.password;
-      }
-
-      const updatedUser = await user.save();
-
-      res.json({
-        _id: updatedUser._id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        phone: updatedUser.phone,
-        location: updatedUser.location,
-        bio: updatedUser.bio,
-        skills: updatedUser.skills,
-        experience: updatedUser.experience,
-        education: updatedUser.education
-      });
-    } else {
-      res.status(404).json({ message: 'User not found' });
+    // 🔹 Handle password change
+    if (req.body.password) {
+      updates.password = req.body.password;
     }
+
+    const updatedUser = await User.update(req.user.id, updates);
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      _id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      phone: updatedUser.phone,
+      location: updatedUser.location,
+      bio: updatedUser.bio,
+      skills: updatedUser.skills,
+      experience: updatedUser.experience,
+      education: updatedUser.education,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

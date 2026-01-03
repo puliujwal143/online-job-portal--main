@@ -15,56 +15,80 @@ const ApplicantDashboard = () => {
     category: '',
     jobType: '',
     location: '',
-    experienceLevel: ''
+    experienceLevel: '',
   });
-  
+
   const navigate = useNavigate();
 
-  // Fetch jobs on component mount
+  // =========================
+  // INITIAL LOAD
+  // =========================
   useEffect(() => {
     fetchJobs();
     fetchMyApplications();
   }, []);
 
+  // =========================
+  // FETCH JOBS
+  // =========================
   const fetchJobs = async () => {
     try {
-      // Build query parameters from filters
       const params = new URLSearchParams();
-      Object.keys(filters).forEach(key => {
-        if (filters[key]) {
-          params.append(key, filters[key]);
-        }
+
+      Object.keys(filters).forEach((key) => {
+        if (filters[key]) params.append(key, filters[key]);
       });
 
-      const response = await api.get('/jobs?' + params.toString());
-      setJobs(response.data.jobs);
-      setLoading(false);
+      const { data } = await api.get('/jobs?' + params.toString());
+      setJobs(data.jobs || []);
     } catch (error) {
-      toast.error('Failed to load jobs. Please try again.');
+      toast.error('Failed to load jobs');
+    } finally {
       setLoading(false);
     }
   };
 
+  // =========================
+  // FETCH MY APPLICATIONS
+  // =========================
   const fetchMyApplications = async () => {
     try {
-      const response = await api.get('/applications/my-applications');
-      setMyApplications(response.data);
+      const { data } = await api.get('/applications/my-applications');
+      setMyApplications(data || []);
     } catch (error) {
-      console.error('Error fetching applications:', error);
+      console.error('Failed to fetch applications', error);
     }
   };
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prevFilters => ({
-      ...prevFilters,
-      [name]: value
-    }));
+  // =========================
+  // HELPERS
+  // =========================
+  const hasApplied = (jobId) => {
+    return myApplications.some((app) =>
+      typeof app.job === 'string'
+        ? app.job === jobId
+        : app.job?.id === jobId
+    );
   };
 
-  const applyFilters = () => {
-    fetchJobs();
+  const viewJobDetails = (jobId) => {
+    navigate('/job/' + jobId);
   };
+
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    if (date.toDate) return date.toDate().toLocaleDateString();
+    return new Date(date).toLocaleDateString();
+  };
+
+  // =========================
+  // FILTER HANDLERS
+  // =========================
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  const applyFilters = () => fetchJobs();
 
   const resetFilters = () => {
     setFilters({
@@ -72,35 +96,24 @@ const ApplicantDashboard = () => {
       category: '',
       jobType: '',
       location: '',
-      experienceLevel: ''
+      experienceLevel: '',
     });
-    // Fetch jobs after a short delay to ensure state is updated
     setTimeout(fetchJobs, 100);
   };
 
-  const viewJobDetails = (jobId) => {
-    navigate('/job/' + jobId);
-  };
-
-  const hasApplied = (jobId) => {
-    return myApplications.some(application => application.job._id === jobId);
-  };
-
-  const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  if (loading) {
-    return <div className="loading">Loading jobs...</div>;
-  }
+  // =========================
+  // RENDER
+  // =========================
+  if (loading) return <div className="loading">Loading jobs...</div>;
 
   return (
     <div>
       <Navbar />
+
       <div className="container applicant-dashboard">
         <h1>Find Your Dream Job</h1>
 
+        {/* TABS */}
         <div className="tabs">
           <button
             className={activeTab === 'jobs' ? 'tab active' : 'tab'}
@@ -108,6 +121,7 @@ const ApplicantDashboard = () => {
           >
             Browse Jobs ({jobs.length})
           </button>
+
           <button
             className={activeTab === 'applications' ? 'tab active' : 'tab'}
             onClick={() => setActiveTab('applications')}
@@ -116,71 +130,64 @@ const ApplicantDashboard = () => {
           </button>
         </div>
 
+        {/* ================= JOBS TAB ================= */}
         {activeTab === 'jobs' && (
           <>
+            {/* FILTERS */}
             <div className="filters-section card">
               <h3>Filter Jobs</h3>
+
               <div className="filters-grid">
                 <div className="form-group">
-                  <input
-                    type="text"
-                    name="search"
-                    placeholder="Search jobs, companies..."
-                    value={filters.search}
-                    onChange={handleFilterChange}
-                  />
+                <input
+                  name="search"
+                  placeholder="Search jobs..."
+                  value={filters.search}
+                  onChange={handleFilterChange}
+                />
+               </div>
+               <div className="form-group">
+                <select name="category" value={filters.category} onChange={handleFilterChange}>
+                  <option value="">All Categories</option>
+                  <option value="IT">IT</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Finance">Finance</option>
+                  <option value="HR">HR</option>
+                </select>
                 </div>
-
                 <div className="form-group">
-                  <select name="category" value={filters.category} onChange={handleFilterChange}>
-                    <option value="">All Categories</option>
-                    <option value="IT">IT</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Sales">Sales</option>
-                    <option value="Finance">Finance</option>
-                    <option value="HR">HR</option>
-                    <option value="Design">Design</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Healthcare">Healthcare</option>
-                    <option value="Education">Education</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <select name="jobType" value={filters.jobType} onChange={handleFilterChange}>
-                    <option value="">All Types</option>
-                    <option value="Full-time">Full-time</option>
-                    <option value="Part-time">Part-time</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Internship">Internship</option>
-                    <option value="Remote">Remote</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <input
-                    type="text"
-                    name="location"
-                    placeholder="Location"
-                    value={filters.location}
-                    onChange={handleFilterChange}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <select name="experienceLevel" value={filters.experienceLevel} onChange={handleFilterChange}>
-                    <option value="">All Experience Levels</option>
-                    <option value="Entry Level">Entry Level</option>
-                    <option value="Mid Level">Mid Level</option>
-                    <option value="Senior Level">Senior Level</option>
-                    <option value="Executive">Executive</option>
-                  </select>
+                <select name="jobType" value={filters.jobType} onChange={handleFilterChange}>
+                  <option value="">All Types</option>
+                  <option value="Full-time">Full-time</option>
+                  <option value="Part-time">Part-time</option>
+                  <option value="Remote">Remote</option>
+                </select>
+</div>
+<div className="form-group">
+                <input
+                  name="location"
+                  placeholder="Location"
+                  value={filters.location}
+                  onChange={handleFilterChange}
+                />
+</div>
+<div className="form-group">
+                <select
+                  name="experienceLevel"
+                  value={filters.experienceLevel}
+                  onChange={handleFilterChange}
+                >
+                  <option value="">All Levels</option>
+                  <option value="Entry Level">Entry Level</option>
+                  <option value="Mid Level">Mid Level</option>
+                  <option value="Senior Level">Senior Level</option>
+                </select>
                 </div>
 
                 <div className="filter-actions">
                   <button className="btn btn-primary" onClick={applyFilters}>
-                    Apply Filters
+                    Apply
                   </button>
                   <button className="btn btn-secondary" onClick={resetFilters}>
                     Reset
@@ -189,46 +196,43 @@ const ApplicantDashboard = () => {
               </div>
             </div>
 
+            {/* JOB LIST */}
             <div className="jobs-list">
               {jobs.length === 0 ? (
-                <div className="no-results">
-                  <p>No jobs found matching your criteria</p>
-                  <button className="btn btn-primary" onClick={resetFilters}>
-                    View All Jobs
-                  </button>
-                </div>
+                <p>No jobs found</p>
               ) : (
                 jobs.map((job) => (
-                  <div key={job._id} className="card job-card">
+                  <div key={job.id} className="card job-card">
                     <div className="job-content">
-                      <h3>{job.title}</h3>
-                      <p className="company">{job.company}</p>
-                      <div className="job-meta">
+                    <h3>{job.title}</h3>
+                    <p className="company">{job.company}</p>
+                     <div className="job-meta">
                         <span className="badge badge-info">{job.category}</span>
                         <span className="badge badge-info">{job.jobType}</span>
                         <span className="badge badge-info">{job.experienceLevel}</span>
                       </div>
-                      <p className="location">Location: {job.location}</p>
-                      <p className="salary">
-                        Salary: ${job.salary.min.toLocaleString()} - ${job.salary.max.toLocaleString()}
-                      </p>
-                      <p className="description">{job.description.substring(0, 200)}...</p>
-                      <p className="deadline">
-                        Application Deadline: {formatDate(job.applicationDeadline)}
-                      </p>
-                      
-                      <div className="job-footer">
-                        <button
-                          className="btn btn-primary"
-                          onClick={() => viewJobDetails(job._id)}
-                        >
-                          {hasApplied(job._id) ? 'View Details' : 'Apply Now'}
-                        </button>
-                        {hasApplied(job._id) && (
-                          <span className="badge badge-success">Applied</span>
-                        )}
-                      </div>
+                    <p><strong>Location:</strong> {job.location}</p>
+                    <p>
+                      <strong>Salary:</strong> ${job.salary.min} – ${job.salary.max}
+                    </p>
+
+                    <p>
+                      <strong>Deadline:</strong> {formatDate(job.applicationDeadline)}
+                    </p>
+
+                    <div className="job-footer">
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => viewJobDetails(job.id)}
+                      >
+                        {hasApplied(job.id) ? 'View Details' : 'Apply Now'}
+                      </button>
+
+                      {hasApplied(job.id) && (
+                        <span className="badge badge-success">Applied</span>
+                      )}
                     </div>
+                  </div>
                   </div>
                 ))
               )}
@@ -236,51 +240,28 @@ const ApplicantDashboard = () => {
           </>
         )}
 
+        {/* ================= APPLICATIONS TAB ================= */}
         {activeTab === 'applications' && (
-          <div className="applications-section">
+          <div className="applications-list">
             {myApplications.length === 0 ? (
-              <div className="no-results">
-                <p>You haven't applied to any jobs yet</p>
-                <button className="btn btn-primary" onClick={() => setActiveTab('jobs')}>
-                  Browse Jobs
-                </button>
-              </div>
+              <p>You haven’t applied to any jobs yet</p>
             ) : (
-              <div className="applications-list">
-                {myApplications.map((application) => (
-                  <div key={application._id} className="card application-card">
-                    <h3>{application.job.title}</h3>
-                    <p className="company">{application.job.company}</p>
-                    <div className="app-details">
-                      <p>Applied: {formatDate(application.appliedAt)}</p>
-                      <p>
-                        Status:{' '}
-                        <span className={'badge badge-' + 
-                          (application.status === 'accepted' ? 'success' : 
-                           application.status === 'rejected' ? 'danger' : 
-                           'warning')
-                        }>
-                          {application.status.toUpperCase()}
-                        </span>
-                      </p>
-                    </div>
-                    
-                    {application.notes && (
-                      <div className="notes">
-                        <strong>Employer Notes:</strong>
-                        <p>{application.notes}</p>
-                      </div>
-                    )}
+              myApplications.map((app) => (
+                <div key={app.id} className="card application-card">
+                  <h3>{app.job?.title}</h3>
+                  <p className="company">{app.job?.company}</p>
 
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => navigate('/job/' + application.job._id)}
-                    >
-                      View Job Details
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  <p>Status: <strong>{app.status}</strong></p>
+                  <p>Applied: {formatDate(app.appliedAt)}</p>
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => navigate('/job/' + app.job.id)}
+                  >
+                    View Job
+                  </button>
+                </div>
+              ))
             )}
           </div>
         )}

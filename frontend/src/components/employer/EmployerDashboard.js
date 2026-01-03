@@ -97,7 +97,7 @@ const EmployerDashboard = () => {
 
   const viewApplications = (job) => {
     setSelectedJob(job);
-    fetchApplications(job._id);
+    fetchApplications(job.id);
     setActiveTab('applications');
   };
 
@@ -105,7 +105,7 @@ const EmployerDashboard = () => {
     try {
       await api.put(`/applications/${applicationId}/status`, { status });
       toast.success('Application status updated');
-      fetchApplications(selectedJob._id);
+      fetchApplications(selectedJob.id);
     } catch (error) {
       toast.error('Failed to update status');
     }
@@ -327,7 +327,7 @@ const EmployerDashboard = () => {
                 <p>No jobs posted yet. Click "Post New Job" to get started.</p>
               ) : (
                 jobs.map((job) => (
-                  <div key={job._id} className="card job-card">
+                  <div key={job.id} className="card job-card">
                     <div className="job-header">
                       <h3>{job.title}</h3>
                       <span className={`badge badge-${job.status === 'open' ? 'success' : job.status === 'pending' ? 'warning' : 'danger'}`}>
@@ -337,7 +337,12 @@ const EmployerDashboard = () => {
                     <p><strong>Location:</strong> {job.location}</p>
                     <p><strong>Type:</strong> {job.jobType}</p>
                     <p><strong>Applications:</strong> {job.applicationsCount}</p>
-                    <p><strong>Deadline:</strong> {new Date(job.applicationDeadline).toLocaleDateString()}</p>
+                    <p>
+  <strong>Deadline:</strong>{" "}
+  {job.applicationDeadline?.toDate
+    ? job.applicationDeadline.toDate().toLocaleDateString()
+    : new Date(job.applicationDeadline).toLocaleDateString()}
+</p>
                     <div className="job-actions">
                       <button
                         className="btn btn-primary btn-sm"
@@ -348,7 +353,7 @@ const EmployerDashboard = () => {
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
-                        onClick={() => deleteJob(job._id)}
+                        onClick={() => deleteJob(job.id)}
                       >
                         Delete
                       </button>
@@ -371,7 +376,7 @@ const EmployerDashboard = () => {
             ) : (
               <div className="applications-list">
                 {applications.map((app) => (
-                  <div key={app._id} className="card application-card">
+                  <div key={app.id} className="card application-card">
                     <h3>{app.applicant.name}</h3>
                     <p><strong>Email:</strong> {app.applicant.email}</p>
                     <p><strong>Phone:</strong> {app.applicant.phone || 'N/A'}</p>
